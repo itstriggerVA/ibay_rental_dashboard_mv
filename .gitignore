@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.idea/
+build/
+dist/
+*.py[cod]
+*.egg-info/
+.coverage
+.streamlit/
+.agents/
+.claude/
+
+# Classified source data and all derived pipeline outputs.
+data/
+tests/fixtures/ibay/
+tests/test_00_real_ibay_fixtures.py
+reports/*.csv
+reports/*.log

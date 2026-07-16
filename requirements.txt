@@ -1,0 +1,6 @@
+-r requirements-dashboard.txt
+beautifulsoup4
+openpyxl
+requests
+scrapy
+urllib3

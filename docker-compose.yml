@@ -1,0 +1,10 @@
+services:
+  dashboard:
+    build: .
+    image: ibay-rental-dashboard:latest
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./dashboard:/app/dashboard
+    restart: unless-stopped
