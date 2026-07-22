@@ -64,7 +64,7 @@ CANONICAL_COLUMNS = [
 
 Key normalized values:
 
-- `source_name`: `ibay`, `property_mv`, or schema-aligned import provenance such as `comm_prop_dataset_v1`
+- `source_name`: `ibay`, `property_mv`, or schema-aligned import provenance.
 - `location_zone`: `MALE`, `HULHUMALE`, `OTHERS`
 - `use_case`: blank for residential listings; commercial keyword category for commercial listings, such as `Warehouse`, `Restaurant`, `Office Space`, `Showroom`, or `Retail`
 
@@ -177,7 +177,7 @@ Preferred build command from the repository root:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_portable.ps1
 ```
 
-The build script creates `.venv` if needed, installs the project with the `packaging` extra, runs PyInstaller, creates runtime data folders, and copies the compressed seed dataset and schema-aligned imports into the distribution.
+The build script creates `.venv` if needed, installs the project with the `packaging` extra, runs PyInstaller and creates runtime data folders.
 
 The finished app is created at:
 
@@ -299,48 +299,6 @@ The Commercial Explorer includes commercial use-case counts with blank use cases
 The Listings Table page shows an overview row with listing counts by source.
 
 Location and currency counts may not tally to total listings when records have blank listing type, blank location, blank currency, or a category outside the displayed buckets.
-
-## Current Seed Dataset
-
-The tracked dashboard seed dataset at `data/processed/ibay_rentals_master.csv.gz` currently contains:
-
-```text
-dashboard master rows:       3,796
-source rows:
-  ibay:                      2,369
-  property_mv:                 930
-  comm_prop_dataset_v1:        497
-listing types:
-  residential:               2,985
-  commercial:                  744
-  unknown:                      67
-rent frequencies:
-  monthly:                   2,064
-  daily:                     1,732
-currencies:
-  MVR:                       3,314
-  USD:                         482
-status:
-  available:                 2,399
-  rented:                    1,397
-latest scraped_at:      2026-07-08T08:57:51Z
-latest last_updated:    2026-07-08
-```
-
-Latest raw crawl stats currently present under `data/raw/`:
-
-```text
-ibay latest stats file:         ibay_raw_20260708T085312Z_crawl_stats.json
-  pages discovered:            1,790
-  pages fetched:                  21
-  duplicate URLs removed:        955
-  robots forbidden:                0
-property_mv latest stats file:  property_mv_raw_20260708T085348Z_crawl_stats.json
-  category pages scanned:        256
-  pages discovered:            1,018
-  pages fetched:               1,018
-  failed URLs:                    0
-```
 
 ## Test Fixtures
 
