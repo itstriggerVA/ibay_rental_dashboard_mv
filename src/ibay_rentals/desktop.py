@@ -22,6 +22,7 @@ from ibay_rentals.sources import SOURCE_IBAY, SOURCE_LABELS, SOURCE_PROPERTY_MV
 
 
 APP_TITLE = "iBay Rental Dashboard"
+DASHBOARD_DATE_FILTER_HINT = "Use the dataset-anchored Last Updated range in the dashboard Filters sidebar to limit listings."
 DEFAULT_PORT = 8501
 STREAMLIT_BIND_ADDRESS = "127.0.0.1"
 LOCAL_DASHBOARD_HOST = STREAMLIT_BIND_ADDRESS
@@ -439,7 +440,7 @@ class DesktopApp(tk.Tk):
             return
         if self.dashboard_process and self.dashboard_process.poll() is None:
             webbrowser.open(local_url)
-            self.status_var.set("Dashboard is already running.")
+            self.status_var.set(f"Dashboard is already running. {DASHBOARD_DATE_FILTER_HINT}")
             return
 
         command = _streamlit_command(DEFAULT_PORT)
@@ -460,7 +461,7 @@ class DesktopApp(tk.Tk):
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Unable to start dashboard:\n{exc}")
             return
-        self.status_var.set(f"Dashboard starting on {local_url}; access is limited to this computer.")
+        self.status_var.set(f"Dashboard starting on {local_url}; access is limited to this computer. {DASHBOARD_DATE_FILTER_HINT}")
         self.after(1500, lambda: webbrowser.open(local_url))
 
     def _stop_worker(self) -> None:

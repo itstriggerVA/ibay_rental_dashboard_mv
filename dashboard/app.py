@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterable
 
@@ -43,6 +44,15 @@ USE_CASE_COLOR_MAP = {
 }
 SUMMARY_VALUE_COLUMNS = {"mean", "median", "min", "max"}
 ROOM_BLANK_FILTER = "<Blank>"
+LAST_UPDATED_ALL_DATES = "All available dates"
+LAST_UPDATED_CUSTOM_RANGE = "Choose a date range"
+LAST_UPDATED_RANGE_DAYS = {
+    "Latest 7 days": 7,
+    "Latest 30 days": 30,
+    "Latest 90 days": 90,
+    "Latest 180 days": 180,
+    "Latest 365 days": 365,
+}
 CANONICAL_COLUMNS = [
     "listing_type",
     "use_case",
@@ -239,6 +249,27 @@ def _room_filter_options(frame: pd.DataFrame) -> list[int | str]:
     return options
 
 
+def _last_updated_timestamps(frame: pd.DataFrame) -> pd.Series:
+    """Parse canonical Last Updated values without changing the loaded data."""
+    return pd.to_datetime(frame["last_updated"], errors="coerce").dt.normalize()
+
+
+def _last_updated_bounds(frame: pd.DataFrame) -> tuple[date, date] | None:
+    timestamps = _last_updated_timestamps(frame).dropna()
+    if timestamps.empty:
+        return None
+    return timestamps.min().date(), timestamps.max().date()
+
+
+def _last_updated_preset_range(option: str, bounds: tuple[date, date]) -> tuple[date, date] | None:
+    """Return a dataset-bounded range ending at its latest Last Updated date."""
+    earliest, latest = bounds
+    if option == LAST_UPDATED_ALL_DATES:
+        return None
+    days = LAST_UPDATED_RANGE_DAYS[option]
+    return max(earliest, latest - timedelta(days=days - 1)), latest
+
+
 def apply_filters(
     frame: pd.DataFrame,
     *,
@@ -250,11 +281,15 @@ def apply_filters(
     location: Iterable[str],
     rooms: Iterable[int | str],
     source_name: Iterable[str],
+    last_updated_start: date | None = None,
+    last_updated_end: date | None = None,
 ) -> pd.DataFrame:
     """Apply positive global filters while preserving the original data types.
 
     Empty categorical selections mean "allow all" for that field. Non-empty
-    selections act as an allowlist.
+    selections act as an allowlist. A supplied Last Updated boundary is
+    inclusive; records with an unparseable Last Updated value are omitted
+    whenever either date boundary is active.
     """
     result = frame.copy()
     selections = {
@@ -281,6 +316,16 @@ def apply_filters(
         if include_blank_rooms:
             room_mask = room_mask | result["room_count"].isna()
         result = result[room_mask]
+    if last_updated_start is not None or last_updated_end is not None:
+        if last_updated_start is not None and last_updated_end is not None and last_updated_start > last_updated_end:
+            raise ValueError("Last Updated start date cannot be after the end date")
+        last_updated = _last_updated_timestamps(result)
+        date_mask = last_updated.notna()
+        if last_updated_start is not None:
+            date_mask = date_mask & (last_updated >= pd.Timestamp(last_updated_start))
+        if last_updated_end is not None:
+            date_mask = date_mask & (last_updated <= pd.Timestamp(last_updated_end))
+        result = result[date_mask]
     return result
 
 
@@ -1385,7 +1430,7 @@ def render_methodology(st) -> None:
 
 **Schema-aligned imports.** Separately maintained canonical datasets can be placed in `data/imports/schema_aligned/`. Accepted import rows are written to `data/processed/imports/schema_aligned_imports.csv` and appended to the dashboard master; rejected import rows are traceable in `schema_aligned_import_review.csv`.
 
-**Dashboard input and display.** The dashboard reads only processed `.csv.gz`, `.csv`, or `.parquet` datasets and does not start scraping from Streamlit. It includes all status values by default for historical analysis. Overview reports source coverage and source share of the filtered sample. Rate charts use median advertised rent with group counts, while mean, minimum, and maximum remain summary-table diagnostics. The rent-percentile control removes the upper tail only within matching source, property-type, currency, and rent-frequency segments. Canonical `MALE` and `HULHUMALE` values display as `Male'` and `Hulhumale'`.
+**Dashboard input and display.** The dashboard reads only processed `.csv.gz`, `.csv`, or `.parquet` datasets and does not start scraping from Streamlit. It includes all status values by default for historical analysis. The optional Last Updated range applies inclusive bounds to canonical `last_updated` metadata and excludes blank or invalid dates while active. Quick ranges and the default custom-range end date use the dataset's latest valid date, and the custom picker cannot exceed the dataset bounds. Overview reports source coverage and source share of the filtered sample. Rate charts use median advertised rent with group counts, while mean, minimum, and maximum remain summary-table diagnostics. The rent-percentile control removes the upper tail only within matching source, property-type, currency, and rent-frequency segments. Canonical `MALE` and `HULHUMALE` values display as `Male'` and `Hulhumale'`.
 
 **Extraction evidence hierarchy.** Price candidates are considered only inside the selected primary listing container: primary price block, then matching title/description evidence, then title, then description. Similar Items, related content, promoted cards, navigation, footer, ads, and seller-profile cards are excluded before extraction.
 
@@ -1439,6 +1484,33 @@ def main() -> None:
         placeholder="All room counts",
     )
     source_name = st.sidebar.multiselect("Source name", _available_values(frame, "source_name"), placeholder="All sources")
+    last_updated_start = last_updated_end = None
+    last_updated_bounds = _last_updated_bounds(frame)
+    if last_updated_bounds is None:
+        st.sidebar.caption("Last Updated filtering is unavailable because the dataset has no valid Last Updated dates.")
+    else:
+        last_updated_option = st.sidebar.selectbox(
+            "Last Updated range",
+            [LAST_UPDATED_ALL_DATES, *LAST_UPDATED_RANGE_DAYS, LAST_UPDATED_CUSTOM_RANGE],
+            help="Quick ranges are counted back from the dataset's latest Last Updated date.",
+        )
+        if last_updated_option == LAST_UPDATED_CUSTOM_RANGE:
+            last_updated_range = st.sidebar.date_input(
+                "Choose a date range",
+                value=last_updated_bounds,
+                min_value=last_updated_bounds[0],
+                max_value=last_updated_bounds[1],
+                help="Both dates are inclusive. The range is limited to the dataset's available Last Updated dates.",
+            )
+            last_updated_start, last_updated_end = last_updated_range
+        else:
+            preset_range = _last_updated_preset_range(last_updated_option, last_updated_bounds)
+            if preset_range is not None:
+                last_updated_start, last_updated_end = preset_range
+                st.sidebar.caption(
+                    f"Using {last_updated_start.isoformat()} through {last_updated_end.isoformat()}, "
+                    "anchored to the dataset's latest date."
+                )
     rent_percentile = st.sidebar.slider(
         "Max rent percentile for analysis",
         min_value=0.90,
@@ -1468,6 +1540,8 @@ def main() -> None:
         location=location,
         rooms=rooms,
         source_name=source_name,
+        last_updated_start=last_updated_start,
+        last_updated_end=last_updated_end,
     )
     if filtered.empty:
         st.warning(

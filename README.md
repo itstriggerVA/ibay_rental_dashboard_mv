@@ -163,7 +163,7 @@ The desktop UI exposes these actions:
 
 - **Run Pipeline** runs scraping and preprocessing together for the selected source(s). This is the normal GUI refresh path.
 - **Import Data** copies a schema-aligned `.xlsx` or `.csv` into `data/imports/schema_aligned/`, then preprocesses.
-- **Show Dashboard** starts the local Streamlit dashboard and opens it in the browser.
+- **Show Dashboard** starts the local Streamlit dashboard and opens it in the browser. Use its **Last Updated range** control to limit listings by the canonical `last_updated` value.
 
 Use the command-line `scrape` and `preprocess` commands only when you intentionally want the advanced partial workflow.
 
@@ -288,7 +288,7 @@ Sale/non-rental pages, missing/contact-price listings, contact numbers parsed as
 
 ## Dashboard
 
-The dashboard reads only `data/processed/ibay_rentals_master.csv.gz`, `.csv`, or `.parquet`; it does not start scrapers. It includes all status values by default for historical analysis. Overview shows source coverage and its share of the filtered sample so a source-skewed sample is not mistaken for a market census.
+The dashboard reads only `data/processed/ibay_rentals_master.csv.gz`, `.csv`, or `.parquet`; it does not start scrapers. It includes all status values by default for historical analysis. The optional **Last Updated range** filter applies inclusive bounds to canonical `last_updated` metadata and excludes listings with a blank or invalid Last Updated value while active. Its quick ranges are counted backward from the dataset's latest valid date, not today. **Choose a date range** defaults its right-hand date to that latest date and prevents selection before the dataset's earliest valid date or after its latest valid date. Overview shows source coverage and its share of the filtered sample so a source-skewed sample is not mistaken for a market census.
 
 Rows with missing chart categories are omitted from visualizations instead of shown as `<blank>`. Location charts use a stable order: `MALE`, `HULHUMALE`, then `OTHERS`, displayed as `Male'`, `Hulhumale'`, and `Others`.
 

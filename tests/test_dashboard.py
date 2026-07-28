@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -262,6 +263,47 @@ def test_dashboard_filters_by_use_case() -> None:
     )
 
     assert filtered["use_case"].tolist() == ["Warehouse"]
+
+
+def test_dashboard_filters_by_last_updated_date_range_inclusively() -> None:
+    frame = pd.DataFrame(
+        {
+            "status": ["AVAILABLE"] * 4,
+            "listing_type": ["RESIDENTIAL"] * 4,
+            "use_case": [pd.NA] * 4,
+            "currency_type": ["MVR"] * 4,
+            "rent_frequency": ["MONTHLY"] * 4,
+            "location_zone": ["MALE"] * 4,
+            "room_count": [1] * 4,
+            "source_name": ["ibay"] * 4,
+            "last_updated": ["2026-06-01", "2026-06-15", "2026-06-30", pd.NA],
+        }
+    )
+
+    filtered = app.apply_filters(
+        frame,
+        status=[],
+        listing_type=[],
+        use_case=[],
+        currency=[],
+        frequency=[],
+        location=[],
+        rooms=[],
+        source_name=[],
+        last_updated_start=date(2026, 6, 15),
+        last_updated_end=date(2026, 6, 30),
+    )
+
+    assert filtered["last_updated"].tolist() == ["2026-06-15", "2026-06-30"]
+    assert app._last_updated_bounds(frame) == (date(2026, 6, 1), date(2026, 6, 30))
+
+
+def test_last_updated_preset_ranges_are_anchored_to_dataset_latest_date() -> None:
+    bounds = (date(2026, 1, 1), date(2026, 6, 30))
+
+    assert app._last_updated_preset_range(app.LAST_UPDATED_ALL_DATES, bounds) is None
+    assert app._last_updated_preset_range("Latest 7 days", bounds) == (date(2026, 6, 24), date(2026, 6, 30))
+    assert app._last_updated_preset_range("Latest 365 days", bounds) == bounds
 
 
 def test_visual_category_frame_drops_nullable_missing_values() -> None:
