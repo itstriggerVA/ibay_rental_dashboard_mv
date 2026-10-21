@@ -20,6 +20,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    delta = subparsers.add_parser("delta", help="Upsert the newest 2-3 online listing pages per category")
+    delta.add_argument("--pages", type=int, choices=(2, 3), default=3)
+    delta.add_argument("--source", action="append", choices=SCRAPER_SOURCES, default=None)
+    delta.add_argument("--raw-dir", type=Path, default=RAW_DATA_DIR)
 
     scrape = subparsers.add_parser("scrape", help="Crawl public rental detail pages for selected sources")
     scrape.add_argument(
@@ -76,7 +80,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    if args.command == "scrape":
+    if args.command == "delta":
+        from .delta import run_delta
+        result = run_delta(pages=args.pages, sources=args.source, raw_dir=args.raw_dir)
+    elif args.command == "scrape":
         from .scraping import run_scrape_sources
 
         result = run_scrape_sources(

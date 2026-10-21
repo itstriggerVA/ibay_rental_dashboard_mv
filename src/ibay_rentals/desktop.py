@@ -165,8 +165,6 @@ def _cleanup_launched_processes() -> None:
         processes = list(_LAUNCHED_PROCESSES)
     for process in processes:
         _stop_process_tree(process)
-    if _DASHBOARD_WAS_STARTED:
-        _kill_windows_listeners_on_port(DEFAULT_PORT)
 
 
 def _install_shutdown_handlers() -> None:
@@ -505,20 +503,23 @@ class DesktopApp(tk.Tk):
         self.destroy()
 
 
-def run_streamlit(port: int) -> None:
+def run_streamlit(port: int, *, address: str = STREAMLIT_BIND_ADDRESS, open_browser: bool = False) -> None:
     global _DASHBOARD_WAS_STARTED
 
-    _DASHBOARD_WAS_STARTED = True
     _start_parent_monitor()
+    from ibay_rentals.dashboard_lifecycle import install_browser_lifecycle
+
+    install_browser_lifecycle(port, open_browser=open_browser)
     app_path = _dashboard_app_path()
     sys.argv = [
         "streamlit",
         "run",
         str(app_path),
         "--global.developmentMode=false",
-        f"--server.address={STREAMLIT_BIND_ADDRESS}",
+        f"--server.address={address}",
         f"--server.port={port}",
         "--server.headless=true",
+        "--server.fileWatcherType=none",
         "--browser.gatherUsageStats=false",
     ]
     from streamlit.web.cli import main as streamlit_main
@@ -537,11 +538,12 @@ def main(argv: list[str] | None = None) -> None:
     if argv[:1] == ["--cli"]:
         _run_cli(argv[1:])
         return
-    if argv[:1] == ["--streamlit"]:
+    if argv[:1] in (["--streamlit"], ["--dashboard-only"]):
         parser = argparse.ArgumentParser()
         parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+        parser.add_argument("--address", default="0.0.0.0" if argv[0] == "--dashboard-only" else STREAMLIT_BIND_ADDRESS)
         args = parser.parse_args(argv[1:])
-        run_streamlit(args.port)
+        run_streamlit(args.port, address=args.address, open_browser=argv[0] == "--dashboard-only")
         return
 
     _install_shutdown_handlers()

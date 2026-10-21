@@ -71,6 +71,38 @@ def _stats_key_counts(stats: dict[object, object], prefix: str) -> dict[str, int
     }
 
 
+def _feed_uri(raw_path: Path) -> str:
+    # Scrapy applies Python %-formatting to feed URIs before opening them.
+    # as_uri() percent-encodes spaces, parentheses, Unicode, and literal %;
+    # double every % so those escapes survive Scrapy's interpolation unchanged.
+    return raw_path.resolve().as_uri().replace("%", "%%")
+
+
+def _validate_feed_output(raw_path: Path, stats: dict) -> int:
+    """A finished crawl is useful only if every fetched listing was saved."""
+    if not raw_path.is_file():
+        raise RuntimeError(f"iBay crawl did not save its JSONL output: {raw_path}")
+    count = 0
+    try:
+        with raw_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    if not isinstance(json.loads(line), dict):
+                        raise ValueError("expected a JSON object")
+                    count += 1
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"iBay JSONL output is unreadable or invalid: {raw_path}") from exc
+    fetched = int(stats.get("ibay/pages_fetched", 0))
+    scraped = int(stats.get("item_scraped_count", 0))
+    failures = sum(_stats_key_counts(stats, "feedexport/failed_count").values())
+    if failures or count != fetched or count != scraped:
+        raise RuntimeError(
+            f"iBay output is incomplete: fetched {fetched}, parsed {scraped}, saved {count}, "
+            f"feed failures {failures}. Output: {raw_path}"
+        )
+    return count
+
+
 class IbayRentalSpider(scrapy.Spider):
     name = "ibay_rentals"
     allowed_domains = ["ibay.com.mv", "www.ibay.com.mv"]
@@ -80,6 +112,7 @@ class IbayRentalSpider(scrapy.Spider):
         max_listings: int = 25,
         start_url: str | None = None,
         start_urls: Sequence[str] | None = None,
+        max_pages: int = 0,
         *args,
         **kwargs,
     ):
@@ -91,6 +124,9 @@ class IbayRentalSpider(scrapy.Spider):
         if parsed_max_listings < 0:
             raise ValueError("max_listings must be a non-negative integer")
         self.max_listings: int | None = None if parsed_max_listings == 0 else parsed_max_listings
+        self.max_pages = int(max_pages)
+        if self.max_pages < 0:
+            raise ValueError("max_pages must be a non-negative integer")
 
         supplied_urls = list(start_urls or ([start_url] if start_url else DEFAULT_START_URLS))
         canonical_starts = list(dict.fromkeys(_normalise_start_url(url) for url in supplied_urls if url))
@@ -146,6 +182,10 @@ class IbayRentalSpider(scrapy.Spider):
         if not self._limit_reached():
             for href in response.css("ul.pagination a::attr(href)").getall():
                 absolute = canonicalize_url(urljoin(response.url, href))
+                # iBay uses zero-based page offsets (off=0 is page one).
+                offset = parse_qs(urlsplit(absolute).query).get("off", ["0"])[0]
+                if self.max_pages and (not offset.isdigit() or int(offset) >= self.max_pages):
+                    continue
                 if (
                     not _is_search_page(absolute)
                     or current_scope not in self.search_scopes
@@ -179,6 +219,7 @@ def run_scrape(
     start_url: str | None = None,
     start_urls: Sequence[str] | None = None,
     raw_dir: Path = RAW_IBAY_DIR,
+    max_pages: int = 0,
 ) -> dict[str, object]:
     """Run the spider and save raw evidence plus a crawl-statistics sidecar JSON."""
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -191,7 +232,7 @@ def run_scrape(
     settings.set(
         "FEEDS",
         {
-            raw_path.resolve().as_uri(): {
+            _feed_uri(raw_path): {
                 "format": "jsonlines",
                 "encoding": "utf-8",
                 "overwrite": True,
@@ -202,7 +243,7 @@ def run_scrape(
     )
     process = CrawlerProcess(settings)
     crawler = process.create_crawler(IbayRentalSpider)
-    process.crawl(crawler, max_listings=max_listings, start_url=start_url, start_urls=start_urls)
+    process.crawl(crawler, max_listings=max_listings, start_url=start_url, start_urls=start_urls, max_pages=max_pages)
     process.start(stop_after_crawl=True)
 
     stats = crawler.stats.get_stats()
@@ -218,6 +259,14 @@ def run_scrape(
         "robots_forbidden": int(stats.get("robotstxt/forbidden", 0)),
         "raw_output": str(raw_path),
     }
+    stats_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+    try:
+        summary["records_exported"] = _validate_feed_output(raw_path, stats)
+    except RuntimeError as exc:
+        summary["export_error"] = str(exc)
+        stats_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+        raise
     stats_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 
     downloader_exceptions = int(stats.get("downloader/exception_count", 0))

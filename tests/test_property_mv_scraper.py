@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+
+def test_delta_never_fetches_category_pages_past_limit(monkeypatch):
+    from ibay_rentals.scrapers import property_mv
+    visited = []
+    monkeypatch.setattr(property_mv, "extract_listing_urls_and_max_page", lambda url: ([], 99))
+    def extract(url):
+        visited.append(url)
+        return []
+    monkeypatch.setattr(property_mv, "extract_listing_urls", extract)
+    property_mv.discover_listing_refs(max_listings=0, max_pages=3)
+    assert len(visited) == 4  # two additional pages per configured category
+    assert all("/page/2/" in url or "/page/3/" in url for url in visited)
+
 from ibay_rentals.scrapers import property_mv
 
 

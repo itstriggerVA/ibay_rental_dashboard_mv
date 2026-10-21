@@ -1515,7 +1515,7 @@ def main() -> None:
         "Max rent percentile for analysis",
         min_value=0.90,
         max_value=1.00,
-        value=0.99,
+        value=0.95,
         step=0.01,
         format="%.2f",
         help="Exclude the highest-rent values within each source, property type, currency, and rent-frequency segment.",

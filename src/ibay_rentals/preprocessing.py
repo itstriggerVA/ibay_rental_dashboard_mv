@@ -652,12 +652,8 @@ def write_outputs(
     validation_path = review_dir / "ibay_validation_issues.csv"
     summary_path = reports_dir / "ibay_compilation_summary.csv"
 
-    accepted.to_csv(csv_path, index=False)
-    accepted.to_csv(csv_gzip_path, index=False, compression="gzip")
-    try:
-        accepted.to_parquet(parquet_path, index=False, engine="pyarrow")
-    except ImportError as exc:
-        raise RuntimeError("pyarrow is required to create the processed Parquet dataset") from exc
+    from .storage import write_master
+    write_master(accepted, processed_dir)
     extraction_review.to_csv(extraction_review_path, index=False)
     (imported if imported is not None else empty_canonical_frame()).to_csv(imported_path, index=False)
     (
@@ -680,6 +676,12 @@ def write_outputs(
 
 
 def run_preprocessing(raw_dir: Path | Iterable[Path] = RAW_DATA_DIR) -> dict[str, Any]:
+    from .storage import dataset_lock
+    with dataset_lock(PROCESSED_DIR):
+        return _run_preprocessing(raw_dir)
+
+
+def _run_preprocessing(raw_dir: Path | Iterable[Path] = RAW_DATA_DIR) -> dict[str, Any]:
     """Read raw JSONL and write canonical, review, validation, and report outputs."""
     raw_records = read_raw_jsonl(raw_dir)
     accepted, review, _, metrics = compile_records(raw_records)

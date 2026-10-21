@@ -17,6 +17,7 @@ def run_scrape_sources(
     start_url: str | None = None,
     start_urls: Sequence[str] | None = None,
     raw_dir: Path = RAW_DATA_DIR,
+    max_pages: int = 0,
 ) -> dict[str, Any]:
     selected_sources = normalise_source_selection(sources)
     if len(selected_sources) > 1 and (start_url or start_urls):
@@ -33,6 +34,7 @@ def run_scrape_sources(
                 start_url=start_url,
                 start_urls=start_urls,
                 raw_dir=target_raw_dir,
+                **({"max_pages": max_pages} if max_pages else {}),
             )
         elif source == SOURCE_PROPERTY_MV:
             from .scrapers.property_mv import run_scrape
@@ -41,6 +43,7 @@ def run_scrape_sources(
                 max_listings=max_listings,
                 start_urls=start_urls,
                 raw_dir=target_raw_dir,
+                **({"max_pages": max_pages} if max_pages else {}),
             )
         else:  # pragma: no cover - guarded by normalise_source_selection.
             raise ValueError(f"Unsupported source {source!r}")

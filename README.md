@@ -193,7 +193,74 @@ Run the packaged app with:
 
 Distribute the entire `dist/IbayRentalDashboard/` folder, not just the executable. The build is intentionally one-folder instead of one-file to keep startup predictable, keep files inspectable, avoid runtime binary extraction into a temporary directory, and reduce endpoint-security friction.
 
+`Show_Dashboard.exe` opens only the dashboard, using the shared `IbayRentalWorker.exe`
+and dependencies beside it. It is a smaller launcher, not a standalone copy of the
+application. It listens on port 8501 on all network interfaces for intranet access;
+colleagues can use `http://<host-name>:8501`. Allow this port through the host's
+intranet firewall if needed. Optional arguments: `--port 8502` or
+`--address 127.0.0.1` for local access only. The existing desktop button still uses
+local access only.
+
+Both launcher paths shut down their server after the **last connected dashboard
+tab** closes. A 15-second grace period allows refreshes and brief reconnects. If
+no tab connects within two minutes of server startup, it stops as well. Other
+connected intranet users keep the server alive. Double-click the launcher again
+to reopen it after shutdown. An occupied port causes startup to fail; the launcher
+does not stop another application to reclaim that port. Browser-session lifecycle
+integration is tested against the packaged Streamlit version (1.59.2).
+
+### Daily delta update at 2am
+
+On the Windows machine hosting the portable folder, run:
+
+```powershell
+.\Install_Daily_Update.ps1
+```
+
+This registers `IbayRentalDashboard-DailyDelta` for **02:00 in the Windows host's
+local timezone**, with missed-run catch-up and two retries 15 minutes apart.
+Run the installer from an Administrator PowerShell to run as SYSTEM even when
+logged out. Without elevation, it registers for the current logged-in account.
+The host must be on and have internet access. Re-run the installer after moving
+the portable folder. Remove the task with
+`Unregister-ScheduledTask -TaskName IbayRentalDashboard-DailyDelta`.
+
+The job reads the first three pages in each configured online rental category
+(four iBay categories and two Property.mv categories), using the sources' default
+listing order. It follows all detail links on those pages, deduplicates URLs, and
+runs the existing normalization, rental filtering, and validation rules. It
+updates matching `(source_name, source_url)` records and inserts new records into
+all three master formats. Existing listings outside the scanned pages and local
+import rows are retained; local import files are not loaded by this job. It does
+not mark older listings unavailable just because they are absent from the delta.
+To use two pages instead, install with `-Pages 2`.
+
+Manual runs:
+
+```powershell
+# Portable folder
+.\Run_Daily_Update.ps1
+# Source checkout
+.\.venv\Scripts\python.exe -m ibay_rentals delta --pages 3
+```
+
+The dashboard does not need to be open. Raw evidence remains in the normal
+source folders, and `reports/delta_*.json` records inserted/updated counts and
+source failures. Review and validation CSVs and scheduled-run logs also go in
+`reports/`. Successful sources are applied even if another source fails; the job
+then returns an error so Task Scheduler can retry. Dataset writers use a shared
+lock, and readers receive complete files through atomic replacement. Refresh an
+open dashboard to load the updated dataset.
+
 If you change source code or bundled dashboard files, rebuild before testing the packaged `.exe`. Running from source does not require a rebuild.
+
+Portable folders may contain spaces, parentheses, Unicode, or percent signs.
+The iBay scraper escapes its feed URI before Scrapy's template interpolation and
+checks that the saved JSONL count matches the fetched/parsed listing counts.
+Missing or incomplete output fails the pipeline visibly instead of silently
+compiling a master dataset without the collected iBay records. If an older
+release collected iBay pages but saved no JSONL file, run Pipeline again using
+the fixed release; the missing raw records cannot be recovered from crawl stats.
 
 The portable app stores generated files beside the executable:
 

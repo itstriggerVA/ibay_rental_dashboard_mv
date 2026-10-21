@@ -204,9 +204,12 @@ def discover_listing_refs(
     *,
     max_listings: int,
     start_urls: Sequence[str] | None = None,
+    max_pages: int = 0,
 ) -> tuple[list[ListingRef], dict[str, int]]:
     if max_listings < 0:
         raise ValueError("max_listings must be a non-negative integer")
+    if max_pages < 0:
+        raise ValueError("max_pages must be a non-negative integer")
     listing_limit = None if max_listings == 0 else max_listings
     url_config = {
         _canonicalize_index_url(url): (frequency, listing_type)
@@ -255,7 +258,7 @@ def discover_listing_refs(
         if max_page <= 1 or (listing_limit is not None and len(listing_config) >= listing_limit):
             continue
 
-        page_numbers = list(range(2, max_page + 1))
+        page_numbers = list(range(2, min(max_page, max_pages or max_page) + 1))
         if listing_limit is not None:
             remaining = listing_limit - len(listing_config)
             estimated_per_page = max(1, len(first_page_urls))
@@ -502,6 +505,7 @@ def run_scrape(
     start_urls: Sequence[str] | None = None,
     raw_dir: Path = RAW_PROPERTY_MV_DIR,
     max_workers: int = MAX_WORKERS,
+    max_pages: int = 0,
 ) -> dict[str, object]:
     max_listings = int(max_listings)
     if max_listings < 0:
@@ -512,7 +516,7 @@ def run_scrape(
     stats_path = raw_dir / f"property_mv_raw_{run_id}_crawl_stats.json"
     failed_path = raw_dir / f"property_mv_raw_{run_id}_failed_urls.jsonl"
 
-    refs, discovery_stats = discover_listing_refs(max_listings=max_listings, start_urls=start_urls)
+    refs, discovery_stats = discover_listing_refs(max_listings=max_listings, start_urls=start_urls, max_pages=max_pages)
     records: list[dict[str, object]] = []
     failures: list[dict[str, str]] = []
 

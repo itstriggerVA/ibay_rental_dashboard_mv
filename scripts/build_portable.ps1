@@ -11,8 +11,10 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 & ".venv\Scripts\python.exe" -m pip install --upgrade pip
 & ".venv\Scripts\python.exe" -m pip install -e ".[packaging]"
 & ".venv\Scripts\python.exe" -m PyInstaller --clean --noconfirm IbayRentalDashboard.spec
+if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
 
 $DistRoot = Join-Path $ProjectRoot "dist\IbayRentalDashboard"
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Run_Daily_Update.ps1'), (Join-Path $PSScriptRoot 'Install_Daily_Update.ps1') -Destination $DistRoot -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "data\raw\ibay") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "data\imports\schema_aligned") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "data\processed") | Out-Null
@@ -32,3 +34,5 @@ if (Test-Path $SchemaImportRoot) {
 
 Write-Host "Portable build created at: $DistRoot"
 Write-Host "Run: $DistRoot\IbayRentalDashboard.exe"
+Write-Host "Dashboard only: $DistRoot\Show_Dashboard.exe"
+Write-Host "Install the daily 2am update on the deployment host: .\Install_Daily_Update.ps1"

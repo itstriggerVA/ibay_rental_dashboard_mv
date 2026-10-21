@@ -135,9 +135,24 @@ worker_exe = EXE(
     entitlements_file=None,
 )
 
+# A small standard-library-only launcher shares the worker's runtime folder.
+dashboard_launcher = Analysis(
+    ["scripts/show_dashboard.py"], pathex=[], binaries=[], datas=[],
+    hiddenimports=[], hookspath=[], runtime_hooks=[], excludes=excludes,
+    noarchive=False, optimize=1,
+)
+dashboard_exe = EXE(
+    PYZ(dashboard_launcher.pure), dashboard_launcher.scripts, [],
+    exclude_binaries=True, name="Show_Dashboard", console=False,
+    debug=False, strip=False, upx=False,
+)
+
 coll = COLLECT(
     exe,
     worker_exe,
+    dashboard_exe,
+    dashboard_launcher.binaries,
+    dashboard_launcher.datas,
     a.binaries,
     a.zipfiles,
     a.datas,
